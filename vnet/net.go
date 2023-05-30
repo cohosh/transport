@@ -551,6 +551,28 @@ type NetConfig struct {
 // The lo0 has the address 127.0.0.1 assigned by default.
 // IP address for eth0 will be assigned when this Net is added to a router.
 func NewNet(config *NetConfig) (*Net, error) {
+	var staticIPs []net.IP
+	if config == nil {
+		ifs := []*transport.Interface{}
+		if orgIfs, err := net.Interfaces(); err == nil {
+			for _, orgIfc := range orgIfs {
+				ifc := transport.NewInterface(orgIfc)
+				if addrs, err := orgIfc.Addrs(); err == nil {
+					for _, addr := range addrs {
+						ifc.AddAddress(addr)
+					}
+				}
+
+				ifs = append(ifs, ifc)
+			}
+		}
+
+		return &Net{
+			interfaces: ifs,
+			staticIPs:  staticIPs,
+			udpConns:   newUDPConnMap(),
+		}, nil
+	}
 	lo0 := transport.NewInterface(net.Interface{
 		Index:        1,
 		MTU:          16384,
@@ -571,7 +593,6 @@ func NewNet(config *NetConfig) (*Net, error) {
 		Flags:        net.FlagUp | net.FlagMulticast,
 	})
 
-	var staticIPs []net.IP
 	for _, ipStr := range config.StaticIPs {
 		if ip := net.ParseIP(ipStr); ip != nil {
 			staticIPs = append(staticIPs, ip)
